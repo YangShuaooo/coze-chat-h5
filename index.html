@@ -1,0 +1,291 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Coze API 调用示例</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        .container {
+            background-color: white;
+            padding: 30px;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        h1 {
+            color: #333;
+            text-align: center;
+        }
+        .form-group {
+            margin-bottom: 20px;
+        }
+        label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: bold;
+        }
+        input, textarea {
+            width: 100%;
+            padding: 10px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            box-sizing: border-box;
+        }
+        textarea {
+            height: 100px;
+            resize: vertical;
+        }
+        button {
+            background-color: #4CAF50;
+            color: white;
+            padding: 10px 20px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 16px;
+        }
+        button:hover {
+            background-color: #45a049;
+        }
+        .response {
+            margin-top: 20px;
+            padding: 20px;
+            background-color: #f9f9f9;
+            border-radius: 4px;
+            border-left: 4px solid #4CAF50;
+        }
+        .error {
+            border-left-color: #f44336;
+        }
+        /* Markdown样式 */
+        .markdown-content h1, .markdown-content h2, .markdown-content h3, .markdown-content h4 {
+            margin-top: 1em;
+            margin-bottom: 0.5em;
+            font-weight: bold;
+        }
+        .markdown-content h1 { font-size: 1.5em; }
+        .markdown-content h2 { font-size: 1.3em; }
+        .markdown-content h3 { font-size: 1.2em; }
+        .markdown-content h4 { font-size: 1.1em; }
+        .markdown-content p { margin: 0.5em 0; }
+        .markdown-content ul, .markdown-content ol { margin-left: 1.5em; margin-bottom: 0.5em; }
+        .markdown-content li { margin: 0.25em 0; }
+        .markdown-content strong, .markdown-content b { font-weight: bold; }
+        .markdown-content em, .markdown-content i { font-style: italic; }
+        .markdown-content code { 
+            background-color: #e8e8e8; 
+            padding: 0.1em 0.3em; 
+            border-radius: 3px; 
+            font-family: monospace; 
+        }
+        .markdown-content pre { 
+            background-color: #e8e8e8; 
+            padding: 1em; 
+            border-radius: 4px; 
+            overflow-x: auto; 
+            margin: 0.5em 0; 
+        }
+        .markdown-content blockquote { 
+            border-left: 4px solid #ddd; 
+            padding-left: 1em; 
+            margin: 0.5em 0; 
+            color: #666; 
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Coze API 调用</h1>
+        
+        <div class="form-group">
+            <label for="message">输入消息：</label>
+            <textarea id="message" placeholder="请输入您的问题..."></textarea>
+        </div>
+        
+        <button onclick="callCozeAPI()">发送请求</button>
+        
+        <div id="response" class="response" style="display: none;">
+            <h3>API 响应：</h3>
+            <div id="response-content" class="markdown-content"></div>
+        </div>
+    </div>
+    
+    <script>
+        // 简单的Markdown解析函数
+        function parseMarkdown(text) {
+            if (!text) return '';
+            
+            let html = text
+                // 转义HTML特殊字符
+                .replace(/&/g, '&amp;')
+                .replace(/</g, '&lt;')
+                .replace(/>/g, '&gt;')
+                // 标题
+                .replace(/^### (.*$)/gim, '<h3>$1</h3>')
+                .replace(/^## (.*$)/gim, '<h2>$1</h2>')
+                .replace(/^# (.*$)/gim, '<h1>$1</h1>')
+                // 粗体
+                .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
+                .replace(/__(.*?)__/g, '<strong>$1</strong>')
+                // 斜体
+                .replace(/\*(.*?)\*/g, '<em>$1</em>')
+                .replace(/_(.*?)_/g, '<em>$1</em>')
+                // 行内代码
+                .replace(/`(.*?)`/g, '<code>$1</code>')
+                // 代码块
+                .replace(/```([\s\S]*?)```/g, '<pre>$1</pre>')
+                // 无序列表
+                .replace(/^- (.*$)/gim, '<li>$1</li>')
+                // 处理列表容器
+                .replace(/(<li>.*<\/li>)/s, '<ul>$1</ul>')
+                // 换行
+                .replace(/\n/g, '<br>');
+            
+            return html;
+        }
+
+        // Coze API 配置
+        const API_URL = 'https://api.coze.cn/v1/workflows/chat';
+        const API_KEY = 'cztei_qqFiTE5X3CMI1cwv9VcaGTVyphVRWVtAQ04tIHHiSYlQ6pq2gL4uUw3Y2Mkkc5Czg';
+        const WORKFLOW_ID = '7627901214831362088';
+        const APP_ID = '7627811392493764660';
+        
+        async function callCozeAPI() {
+            const message = document.getElementById('message').value;
+            const responseDiv = document.getElementById('response');
+            const responseContent = document.getElementById('response-content');
+            
+            // 显示加载状态
+            responseDiv.style.display = 'block';
+            responseContent.innerHTML = '正在发送请求...';
+            
+            try {
+                const response = await fetch(API_URL, {
+                    method: 'POST',
+                    headers: {
+                        'Authorization': `Bearer ${API_KEY}`,
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        workflow_id: WORKFLOW_ID,
+                        app_id: APP_ID,
+                        parameters: {
+                            "CONVERSATION_NAME": "AIPM_EXERCISE",
+                            "USER_INPUT": message
+                        },
+                        additional_messages: [{
+                            content_type: 'text',
+                            role: 'user',
+                            type: 'question',
+                            content: message
+                        }]
+                    })
+                });
+                
+                if (!response.ok) {
+                    try {
+                        const errorData = await response.json();
+                        throw new Error(`HTTP error! status: ${response.status}\n${JSON.stringify(errorData, null, 2)}`);
+                    } catch (e) {
+                        throw new Error(`HTTP error! status: ${response.status}`);
+                    }
+                }
+                
+                // 检查是否是SSE流
+                const contentType = response.headers.get('content-type');
+                if (contentType && contentType.includes('text/event-stream')) {
+                    // 处理SSE流
+                    const reader = response.body.getReader();
+                    let allEvents = [];
+                    let fullMessage = '';
+                    
+                    while (true) {
+                        const { done, value } = await reader.read();
+                        if (done) break;
+                        
+                        const chunk = new TextDecoder().decode(value);
+                        
+                        // 解析SSE事件
+                        const events = chunk.split('\n\n');
+                        for (const event of events) {
+                            if (!event) continue;
+                            
+                            const lines = event.split('\n');
+                            let eventType = 'message';
+                            let eventData = '';
+                            
+                            for (const line of lines) {
+                                if (line.startsWith('event:')) {
+                                    eventType = line.substring(6).trim();
+                                } else if (line.startsWith('data:')) {
+                                    eventData += line.substring(5).trim();
+                                }
+                            }
+                            
+                            if (eventData) {
+                                try {
+                                    const data = JSON.parse(eventData);
+                                    allEvents.push({ type: eventType, data: data });
+                                    
+                                    // 收集消息内容
+                                    if (eventType === 'conversation.message.delta' && data.content) {
+                                        fullMessage += data.content;
+                                    }
+                                    if (eventType === 'conversation.message.completed' && data.type === 'answer' && data.content) {
+                                        fullMessage = data.content;
+                                    }
+                                } catch (e) {
+                                    // 忽略解析错误
+                                }
+                            }
+                        }
+                        
+                        // 构建友好的显示内容
+                        let displayContent = '';
+                        
+                        // 显示聊天状态
+                        const lastEvent = allEvents[allEvents.length - 1];
+                        if (lastEvent) {
+                            if (lastEvent.data.status === 'created') {
+                                displayContent += '<p><strong>状态:</strong> 正在创建对话...</p>';
+                            } else if (lastEvent.data.status === 'in_progress') {
+                                displayContent += '<p><strong>状态:</strong> 正在处理...</p>';
+                            } else if (lastEvent.data.status === 'completed') {
+                                displayContent += '<p><strong>状态:</strong> 完成</p>';
+                            }
+                        }
+                        
+                        // 显示完整的消息
+                        if (fullMessage) {
+                            displayContent += '<h3>回答</h3>';
+                            displayContent += parseMarkdown(fullMessage);
+                        }
+                        
+                        // 如果没有消息，显示加载状态
+                        if (!displayContent) {
+                            displayContent = '<p>正在处理请求...</p>';
+                        }
+                        
+                        responseContent.innerHTML = displayContent;
+                    }
+                } else {
+                    // 处理普通JSON响应
+                    const responseData = await response.json();
+                    responseContent.innerHTML = `<pre>${JSON.stringify(responseData, null, 2)}</pre>`;
+                }
+                
+                responseDiv.className = 'response';
+            } catch (error) {
+                responseContent.innerHTML = `<p><strong>错误:</strong> ${error.message}</p>`;
+                responseDiv.className = 'response error';
+            }
+        }
+    </script>
+</body>
+</html>
